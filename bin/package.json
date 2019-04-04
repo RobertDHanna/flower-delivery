@@ -1,0 +1,14 @@
+{
+  "name": "bin",
+  "version": "1.0.0",
+  "description": "",
+  "main": "send-driver-order.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "got": "^9.6.0"
+  }
+}
