@@ -33,4 +33,27 @@ ruleset driver {
     }
   }
   
+  rule on_make_bid {
+    select when bid make_bid
+    pre {
+      flowerShopEci = event:attrs{"flowerShopEci"}
+      pickupTime = event:attrs{"pickupTime"}
+      deliveryTime = event:attrs{"deliveryTime"}
+      location = event:attrs{"location"}
+      orderSequenceNumber = event:attrs{"orderSequenceNumber"}
+    }
+    event:send({
+      "eci": flowerShopEci,
+      "eid": "none",
+      "domain": "bid",
+      "type": "process",
+      "attrs": {
+        "driverEci": meta:eci,
+        "bidAmount": 30,
+        "estimatedDeliveryTime": 10,
+        "orderSequenceNumber": orderSequenceNumber
+      }
+    })
+  }
+  
 }

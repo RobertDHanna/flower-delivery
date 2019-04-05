@@ -55,18 +55,32 @@ ruleset gossip {
     select when bid process
     pre {
       messageID = meta:picoId + ":" + ent:sequenceNumber.defaultsTo(0)
+      flowerShopEci = event:attrs{"who"}
       pickupTime = event:attrs{"pickupTime"}.klog("[gossip] process pickup time: ")
       deliveryTime = event:attrs{"deliveryTime"}.klog("[gossip] process delivery time: ")
+      location = event:attrs{"location"}
+      orderSequenceNumber = event:attrs{"orderSequenceNumber"}
     }
     always {
       ent:seen{meta:picoId} := ent:seen{meta:picoId}.defaultsTo({}).put(meta:picoId, ent:sequenceNumber.defaultsTo(0));
       ent:rumors{messageID} := {
         "MessageID": messageID,
         "SensorID": meta:picoId,
-        "PickupTime": pickupTime,
-        "DeliveryTime": deliveryTime
+        "flowerShopEci": flowerShopEci,
+        "pickupTime": pickupTime,
+        "deliveryTime": deliveryTime,
+        "location": location,
+        "orderSequenceNumber": orderSequenceNumber
       };
-      ent:sequenceNumber := ent:sequenceNumber + 1
+      ent:sequenceNumber := ent:sequenceNumber + 1;
+      raise bid event "make_bid"
+        attributes {
+          "flowerShopEci": flowerShopEci,
+          "pickupTime": pickupTime,
+          "deliveryTime": deliveryTime,
+          "location": location,
+          "orderSequenceNumber": orderSequenceNumber
+        }
     }
   }
   rule gossip_heartbeat {
@@ -108,8 +122,19 @@ ruleset gossip {
         "seen": ent:seen{meta:picoId}
       }
     })
-    
-    always {
+    notfired {
+      // we haven't seen this rumor before. let's make a bid if we can!
+      rumor = event:attrs{"rumor"};
+      raise bid event "make_bid"
+        attributes {
+          "flowerShopEci": rumor{"flowerShopEci"},
+          "pickupTime": rumor{"pickupTime"},
+          "deliveryTime": rumor{"deliveryTime"},
+          "location": rumor{"location"},
+          "orderSequenceNumber": rumor{"orderSequenceNumber"}
+        }
+    }
+    finally {
       ent:rumors{messageID} := event:attrs{"rumor"};
       sequenceNumber = getHighestSequenceNumberFromMessageID(messageID, 0);
       ent:seen{meta:picoId} := ent:seen{meta:picoId}.defaultsTo({}).put(messageID.split(":")[0], (sequenceNumber == -1) => 0 | sequenceNumber );
