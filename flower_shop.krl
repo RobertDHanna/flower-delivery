@@ -20,7 +20,9 @@ ruleset flower_shop {
     }
     selectBidder = function(bidders) {
       bidders.klog("my bidders: ");
-      sortedByClosest = bidders.sort(function(a, b) {
+      sortedByClosest = bidders.filter(function(bidder) {
+        ent:driverStatus{bidder{"driverEci"}} == "free" || ent:driverStatus{bidder{"driverEci"}} == null
+      }).sort(function(a, b) {
         a{"estimatedDeliveryTime"} < b{"estimatedDeliveryTime"} => -1 |
         a{"estimatedDeliveryTime"} == b{"estimatedDeliveryTime"} => 0 |
                                                                     1
@@ -53,7 +55,7 @@ ruleset flower_shop {
       deliveryTime = ent:orderMap{orderSequenceNumber}{"deliveryTime"}
       location = ent:orderMap{orderSequenceNumber}{"location"}
     }
-    event:send({
+    if pickedDriver != null then event:send({
       "eci": pickedDriver{"driverEci"},
       "edi": "eid",
       "domain": "bid",
@@ -66,10 +68,34 @@ ruleset flower_shop {
         "orderSequenceNumber": orderSequenceNumber
       }
     })
-    always {
+    fired {
       ent:orderMap{[orderSequenceNumber, "selectedDriver"]} := pickedDriver{"driverEci"};
       ent:orderMap{[orderSequenceNumber, "deliveryStatus"]} := "out for pickup";
       ent:driverStatus{pickedDriver{"driverEci"}} := "picking up order"
+    } else {
+      // raise order event "broadcast" attributes {
+      //   "pickupTime": pickupTime,
+      //   "deliveryTime": deliveryTime,
+      //   "location": location,
+      //   "orderSequenceNumber": orderSequenceNumber
+      // };
+      raise order event "reschedule" attributes { "orderSequenceNumber": orderSequenceNumber }
+    }
+  }
+  
+  rule on_reschedule_bid_choosing {
+    select when order reschedule
+    pre {
+      orderSequenceNumber = event:attrs{"orderSequenceNumber"}
+      orderAvailable = ent:orderMap.values().filter(function(order) {
+        order{"deliveryStatus"} == "not delivered"
+      }).length() > 0
+    }
+    if orderAvailable then noop()
+    fired {
+      schedule order event "choose_bidder" at time:add(time:now(), {"seconds": 5}) attributes {
+        "orderSequenceNumber": orderSequenceNumber
+      }
     }
   }
   
@@ -104,8 +130,8 @@ ruleset flower_shop {
   rule on_new_order {
     select when order new
     pre {
-      pickupTime = time:add(time:now(), {"seconds": 30})
-      deliveryTime = time:add(time:now(), {"seconds": 60})
+      pickupTime = time:add(time:now(), {"seconds": 15})
+      deliveryTime = time:add(time:now(), {"seconds": 30})
     }
     always {
       order = { 

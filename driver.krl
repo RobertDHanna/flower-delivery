@@ -17,6 +17,7 @@ ruleset driver {
     pickBidAmount = function() {
       random:integer(15) + 5
     }
+    
   }
   rule on_bid_request {
     select when bid request
@@ -31,26 +32,21 @@ ruleset driver {
     }
   }
   
-  rule on_bid_process {
-    select when bid process
-    pre {
-      pickupTime = event:attrs{"pickupTime"}.klog("process pickup time: ")
-      deliveryTime = event:attrs{"deliveryTime"}.klog("process delivery time: ")
-    }
-  }
+  // rule on_bid_process {
+  //   select when bid process
+  //   pre {
+  //     pickupTime = event:attrs{"pickupTime"}.klog("process pickup time: ")
+  //     deliveryTime = event:attrs{"deliveryTime"}.klog("process delivery time: ")
+  //   }
+  // }
   
-  rule on_make_bid {
-    select when bid make_bid
+  rule bid_heartbeat {
+    select when bid heartbeat
     pre {
-      flowerShopEci = event:attrs{"flowerShopEci"}
-      pickupTime = event:attrs{"pickupTime"}
-      deliveryTime = event:attrs{"deliveryTime"}
-      location = event:attrs{"location"}
-      orderSequenceNumber = event:attrs{"orderSequenceNumber"}
+      bid = ent:bidList.head()
     }
-    if ent:activeDelivery == null then
-      event:send({
-        "eci": flowerShopEci,
+    if ent:activeDelivery == null && bid != null then event:send({
+        "eci": bid{"flowerShopEci"},
         "eid": "none",
         "domain": "bid",
         "type": "process",
@@ -58,9 +54,37 @@ ruleset driver {
           "driverEci": meta:eci,
           "bidAmount": pickBidAmount(),
           "estimatedDeliveryTime": locationToDistance(),
-          "orderSequenceNumber": orderSequenceNumber
+          "orderSequenceNumber": bid{"orderSequenceNumber"}
         }
+    })
+    fired {
+      ent:bidList := ent:bidList.filter(function(_bid) {
+        bid{"orderSequenceNumber"} != _bid{"orderSequenceNumber"}
+      });
+    }
+    finally {
+     schedule bid event "heartbeat" at time:add(time:now(), {"seconds": 3})
+   }
+  }
+  
+  rule on_new_bid {
+    select when bid new_bid
+    pre {
+      flowerShopEci = event:attrs{"flowerShopEci"}
+      pickupTime = event:attrs{"pickupTime"}
+      deliveryTime = event:attrs{"deliveryTime"}
+      location = event:attrs{"location"}
+      orderSequenceNumber = event:attrs{"orderSequenceNumber"}
+    }
+    always {
+      ent:bidList := ent:bidList.append({
+        "flowerShopEci": flowerShopEci,
+        "pickupTime": pickupTime,
+        "deliveryTime": deliveryTime,
+        "location": location,
+        "orderSequenceNumber": orderSequenceNumber
       })
+    }
   }
   
   rule on_bid_accepted {
@@ -146,6 +170,14 @@ ruleset driver {
     }
   }
   
+  rule clear_data {
+    select when driver clear
+    always {
+      ent:activeDelivery := null;
+      ent:bidList := [];
+    }
+  }
+  
   rule on_installation {
     select when wrangler ruleset_added where rids >< meta:rid
     pre {
@@ -153,6 +185,9 @@ ruleset driver {
     noop()
     fired{
       ent:activeDelivery := null;
+      ent:bidList := [];
+      raise bid event "heartbeat"
+        attributes attributes
     }
   }
   

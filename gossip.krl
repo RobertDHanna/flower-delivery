@@ -57,8 +57,8 @@ ruleset gossip {
       (ent:rumors >< id + ":" + startNumber) => getHighestSequenceNumberFromMessageID(messageID, startNumber + 1) | startNumber - 1
     }
   }
-  rule on_bid_process {
-    select when bid process
+  rule on_bid_request {
+    select when bid request
     pre {
       messageID = meta:picoId + ":" + ent:sequenceNumber.defaultsTo(0)
       flowerShopEci = event:attrs{"who"}
@@ -79,7 +79,7 @@ ruleset gossip {
         "orderSequenceNumber": orderSequenceNumber
       };
       ent:sequenceNumber := ent:sequenceNumber + 1;
-      raise bid event "make_bid"
+      raise bid event "new_bid"
         attributes {
           "flowerShopEci": flowerShopEci,
           "pickupTime": pickupTime,
@@ -131,7 +131,7 @@ ruleset gossip {
     notfired {
       // we haven't seen this rumor before. let's make a bid if we can!
       rumor = event:attrs{"rumor"};
-      raise bid event "make_bid"
+      raise bid event "new_bid"
         attributes {
           "flowerShopEci": rumor{"flowerShopEci"},
           "pickupTime": rumor{"pickupTime"},
@@ -198,7 +198,7 @@ ruleset gossip {
       ent:rumors := {};
       ent:seen := {};
       ent:sequenceNumber := 0;
-      ent:scheduleDelay := 5;
+      ent:scheduleDelay := 2;
     }
   }
   rule auto_accept {
