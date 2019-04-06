@@ -92,7 +92,17 @@ ruleset driver {
       nowPlusTimeToArrive = time:add(time:now(), {"seconds": locationToDistance()})
       shouldILeaveNow = (pickupTime < nowPlusTimeToArrive).klog("should I leave now pickup: ")
     }
-    if shouldILeaveNow then noop()
+    if shouldILeaveNow then 
+      event:send({
+        "eci": ent:activeDelivery{"flowerShopEci"},
+        "eid": "none",
+        "domain": "order",
+        "type": "pickup",
+        "attrs": {
+          "driverEci": meta:eci,
+          "orderSequenceNumber": ent:activeDelivery{"orderSequenceNumber"}
+        }
+      })
     fired {
       schedule driver event "start_delivery" at time:add(time:now(), {"seconds": locationToDistance()})
     } else {
@@ -108,6 +118,7 @@ ruleset driver {
       shouldILeaveNow = (deliveryTime < nowPlusTimeToArrive).klog("should I leave now delivery: ")
     }
     if shouldILeaveNow then noop()
+    // also send text message using twilio
     fired {
       schedule driver event "finalize_delivery" at time:add(time:now(), {"seconds": locationToDistance()})
     } else {
@@ -120,6 +131,16 @@ ruleset driver {
     pre {
       flowerShopEci = ent:activeDelivery{"flowerShopEci"}.klog("FINISHING DELIVERY WITH: ")
     }
+    event:send({
+      "eci": flowerShopEci,
+      "eid": "none",
+      "domain": "order",
+      "type": "finalize",
+      "attrs": {
+        "driverEci": meta:eci,
+        "orderSequenceNumber": ent:activeDelivery{"orderSequenceNumber"}
+      }
+    })
     always {
       ent:activeDelivery := null
     }

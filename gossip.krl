@@ -32,6 +32,12 @@ ruleset gossip {
         justID = messageID.split(":")[0];
         sequenceNumber = messageID.split(":")[1].as("Number");
         not (messagesSeenByPeer >< justID && messagesSeenByPeer{justID} >= sequenceNumber)
+      }).sort(function(a,b) {
+        sequenceNumberA = a.split(":")[1].as("Number");
+        sequenceNumberB = b.split(":")[1].as("Number");
+        sequenceNumberA < sequenceNumberB => -1 |
+        sequenceNumberA == sequenceNumberB => 0 |
+                                              1
       }).head().klog("chosen message ID: ");
       ent:rumors{chosenMessageID}.klog("chosen rumor: ")
     }

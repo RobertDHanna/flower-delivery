@@ -1,6 +1,6 @@
 ruleset flower_shop {
   meta {
-    shares __testing, orders
+    shares __testing, orders, drivers
     use module io.picolabs.subscription alias Subscription
   }
   global {
@@ -15,6 +15,9 @@ ruleset flower_shop {
     orders = function() {
       ent:orderMap
     }
+    drivers = function() {
+      ent:driverStatus
+    }
     selectBidder = function(bidders) {
       bidders.klog("my bidders: ");
       sortedByClosest = bidders.sort(function(a, b) {
@@ -25,6 +28,19 @@ ruleset flower_shop {
       sliceLength = sortedByClosest.length() > 3 => 3 | sortedByClosest.length() - 1;
       topThreeChoices = sortedByClosest.slice(sliceLength).klog("top three choices: ");
       topThreeChoices[random:integer(topThreeChoices.length() - 1)].klog("our choice: ")
+    }
+  }
+  
+  rule on_finalize_order {
+    select when order finalize
+    pre {
+      driverEci = event:attrs{"driverEci"}
+      orderSequenceNumber = event:attrs{"orderSequenceNumber"}
+      order = ent:orderMap{orderSequenceNumber}
+    }
+    always {
+      ent:orderMap{[orderSequenceNumber, "deliveryStatus"]} := "delivered";
+      ent:driverStatus{driverEci} := "free"
     }
   }
   
@@ -52,7 +68,19 @@ ruleset flower_shop {
     })
     always {
       ent:orderMap{[orderSequenceNumber, "selectedDriver"]} := pickedDriver{"driverEci"};
-      ent:orderMap{[orderSequenceNumber, "deliveryStatus"]} := "out for picku"
+      ent:orderMap{[orderSequenceNumber, "deliveryStatus"]} := "out for pickup";
+      ent:driverStatus{pickedDriver{"driverEci"}} := "picking up order"
+    }
+  }
+  
+  rule on_driver_pickup_status {
+    select when order pickup
+    pre {
+      driverEci = event:attrs{"driverEci"}
+      orderSequenceNumber = event:attrs{"orderSequenceNumber"}
+    }
+    always {
+      ent:driverStatus{driverEci} := "out for delivery"
     }
   }
   
@@ -76,8 +104,8 @@ ruleset flower_shop {
   rule on_new_order {
     select when order new
     pre {
-      pickupTime = event:attrs{"pickupTime"}
-      deliveryTime = event:attrs{"deliveryTime"}
+      pickupTime = time:add(time:now(), {"seconds": 30})
+      deliveryTime = time:add(time:now(), {"seconds": 60})
     }
     always {
       order = { 
@@ -144,6 +172,7 @@ ruleset flower_shop {
     fired{
       ent:orderSequenceNumber := 0;
       ent:orderMap := {};
+      ent:driverStatus := {};
     }
   }
 }
