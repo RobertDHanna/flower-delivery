@@ -15,10 +15,45 @@ ruleset flower_shop {
     orders = function() {
       ent:orderMap
     }
+    selectBidder = function(bidders) {
+      bidders.klog("my bidders: ");
+      sortedByClosest = bidders.sort(function(a, b) {
+        a{"estimatedDeliveryTime"} < b{"estimatedDeliveryTime"} => -1 |
+        a{"estimatedDeliveryTime"} == b{"estimatedDeliveryTime"} => 0 |
+                                                                    1
+      }).klog("sorted by closest: ");
+      sliceLength = sortedByClosest.length() > 3 => 3 | sortedByClosest.length() - 1;
+      topThreeChoices = sortedByClosest.slice(sliceLength).klog("top three choices: ");
+      topThreeChoices[random:integer(topThreeChoices.length() - 1)].klog("our choice: ")
+    }
   }
   
   rule on_choose_bidder {
     select when order choose_bidder
+    pre {
+      orderSequenceNumber = event:attrs{"orderSequenceNumber"}
+      pickedDriver = selectBidder(ent:orderMap{[orderSequenceNumber, "bids"]})
+      pickupTime = ent:orderMap{orderSequenceNumber}{"pickupTime"}
+      deliveryTime = ent:orderMap{orderSequenceNumber}{"deliveryTime"}
+      location = ent:orderMap{orderSequenceNumber}{"location"}
+    }
+    event:send({
+      "eci": pickedDriver{"driverEci"},
+      "edi": "eid",
+      "domain": "bid",
+      "type": "accepted",
+      "attrs": {
+        "flowerShopEci": meta:eci,
+        "pickupTime": pickupTime,
+        "deliveryTime": deliveryTime,
+        "location": location,
+        "orderSequenceNumber": orderSequenceNumber
+      }
+    })
+    always {
+      ent:orderMap{[orderSequenceNumber, "selectedDriver"]} := pickedDriver{"driverEci"};
+      ent:orderMap{[orderSequenceNumber, "deliveryStatus"]} := "out for picku"
+    }
   }
   
   rule on_gather_bid {
@@ -58,7 +93,9 @@ ruleset flower_shop {
       ent:orderSequenceNumber := ent:orderSequenceNumber + 1;
       raise order event "broadcast"
         attributes order;
-      schedule order event "choose_bidder" at time:add(time:now(), {"seconds": 60})
+      schedule order event "choose_bidder" at time:add(time:now(), {"seconds": 15}) attributes {
+        "orderSequenceNumber": ent:orderSequenceNumber - 1
+      }
     }
   }
   
