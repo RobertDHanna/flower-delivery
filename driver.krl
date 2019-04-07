@@ -3,6 +3,9 @@ ruleset driver {
     use module apis_and_picos.keys
     use module mapbox_wrapper alias mapbox
           with access_token = keys:mapbox{"access_token"}
+    use module apis_and_picos.twilio_wrapper alias twilio
+        with account_sid = keys:twilio{"account_sid"}
+             auth_token =  keys:twilio{"auth_token"}
     shares __testing
   }
   global {
@@ -14,6 +17,7 @@ ruleset driver {
       //, { "domain": "d2", "type": "t2", "attrs": [ "a1", "a2" ] }
       ]
     }
+    driverNum = "+1801555555"
     locationToDistance = function(otherCoordinate) {
       ent:myCoordinate.klog("my coordinate: ");
       otherCoordinate.klog("other coordinate: ");
@@ -100,7 +104,18 @@ ruleset driver {
       flowerShopCoordinate = event:attrs{"flowerShopCoordinate"}
       orderCoordinate = event:attrs{"orderCoordinate"}
     }
-    always {
+    if ent:activeDelivery != null then 
+      event:send({
+        "eci": ent:activeDelivery{"flowerShopEci"},
+        "eid": "none",
+        "domain": "driver",
+        "type": "busy",
+        "attrs": {
+          "driverEci": meta:eci,
+          "orderSequenceNumber": ent:activeDelivery{"orderSequenceNumber"}
+        }
+      })
+    notfired {
       ent:activeDelivery := {
         "flowerShopEci": flowerShopEci,
         "pickupTime": pickupTime,
@@ -148,6 +163,11 @@ ruleset driver {
       shouldILeaveNow = (deliveryTime < nowPlusTimeToArrive).klog("should I leave now delivery: ")
     }
     if shouldILeaveNow then noop()
+      // twilio:send_sms(
+      //   ent:activeDelivery{"toNum"},
+      //   driverNum,
+      //   "Your order is our for delivery!"
+      // )
     // also send text message using twilio
     fired {
       schedule driver event "finalize_delivery" at time:add(time:now(), {"seconds": ent:activeDelivery{"timeToCustomer"}})

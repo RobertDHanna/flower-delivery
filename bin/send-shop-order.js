@@ -1,5 +1,5 @@
 const got = require("got");
-const shopEcis = ["HuD3jq7cDAhPgCcLabmJqp"];
+const shopEcis = ["HuD3jq7cDAhPgCcLabmJqp", "ASYXHLyAapsjLdjvWhKi9C"];
 
 const baseEventUrl = `http://localhost:8080/sky/event/`;
 

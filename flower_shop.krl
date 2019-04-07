@@ -87,6 +87,19 @@ ruleset flower_shop {
     }
   }
   
+  rule on_driver_busy {
+    select when driver busy
+    pre {
+      driverEci = event:attrs{"driverEci"}
+      orderSequenceNumber = event:attrs{"orderSequenceNumber"}
+    }
+    always {
+      ent:orderMap{[orderSequenceNumber, "selectedDriver"]} := null;
+      ent:orderMap{[orderSequenceNumber, "deliveryStatus"]} := "not delivered";
+      raise order event "choose_bidder" attributes { "orderSequenceNumber": orderSequenceNumber }
+    }
+  }
+  
   rule on_reschedule_bid_choosing {
     select when order reschedule
     pre {
@@ -134,10 +147,35 @@ ruleset flower_shop {
   rule on_new_order {
     select when order new
     pre {
-      pickupTime = time:add(time:now(), {"seconds": 15})
-      deliveryTime = time:add(time:now(), {"seconds": 30})
-      myCoordinate = "-111.687854,40.296484"
-      orderCoordinate = "-111.649701,40.226665"
+      pickupTime = time:add(time:now(), {"seconds": 30})
+      deliveryTime = time:add(time:now(), {"seconds": 60})
+      orders = [
+        "-111.698688,40.243314",
+        "-111.649701,40.226665",
+        "-111.730735,40.298550",
+        "-111.704925,40.247095",
+        "-111.640316,40.292476",
+        "-111.635355,40.220676",
+        "-111.646344,40.212896",
+        "-111.631692,40.252833",
+        "-111.687854,40.296484",
+        "-111.719294,40.289226",
+        "-111.671003,40.253052",
+        "-111.702211,40.317122",
+        "-111.652116,40.240947",
+        "-111.675614,40.297440",
+        "-111.712730,40.308373",
+        "-111.705573,40.309429",
+        "-111.649481,40.226231",
+        "-111.682343,40.305793",
+        "-111.686984,40.274418",
+        "-111.692090,40.214752",
+        "-111.635477,40.256025",
+        "-111.666160,40.311277",
+        "-111.710427,40.269397"
+      ]
+      myCoordinate = ent:myCoordinate
+      orderCoordinate = orders[random:integer(orders.length() - 1)]
      }
     always {
       order = { 
@@ -202,6 +240,16 @@ ruleset flower_shop {
     }
   }
   
+  rule on_set_coordinate {
+    select when coordinate set
+    pre {
+      coordinate = event:attrs{"coordinate"}
+    }
+    always {
+      ent:myCoordinate := coordinate
+    }
+  }
+  
   rule on_installation {
     select when wrangler ruleset_added where rids >< meta:rid
     pre {
@@ -211,6 +259,7 @@ ruleset flower_shop {
       ent:orderSequenceNumber := 0;
       ent:orderMap := {};
       ent:driverStatus := {};
+      ent:myCoordinate := "";
     }
   }
 }

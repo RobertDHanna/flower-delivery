@@ -53,6 +53,8 @@ ruleset gossip {
       }).klog("rumors not heard: ")
     }
     getHighestSequenceNumberFromMessageID = function(messageID, startNumber) {
+      messageID.klog("message ID: ");
+      startNumber.klog("startNumber: ");
       id = messageID.split(":")[0];
       (ent:rumors >< id + ":" + startNumber) => getHighestSequenceNumberFromMessageID(messageID, startNumber + 1) | startNumber - 1
     }
@@ -148,8 +150,9 @@ ruleset gossip {
     }
     finally {
       ent:rumors{messageID} := event:attrs{"rumor"};
-      sequenceNumber = getHighestSequenceNumberFromMessageID(messageID, 0);
-      ent:seen{meta:picoId} := ent:seen{meta:picoId}.defaultsTo({}).put(messageID.split(":")[0], (sequenceNumber == -1) => 0 | sequenceNumber );
+      ent:rumors.klog("my rumors from: ");
+      sequenceNumber = getHighestSequenceNumberFromMessageID(messageID, 0).klog("highest sequence: ");
+      ent:seen{meta:picoId} := ent:seen{meta:picoId}.defaultsTo({}).put(messageID.split(":")[0], (sequenceNumber == -1) => sequenceNumber | sequenceNumber );
     }
   }
   rule gossip_seen {
