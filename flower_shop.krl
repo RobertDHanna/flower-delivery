@@ -54,6 +54,8 @@ ruleset flower_shop {
       pickupTime = ent:orderMap{orderSequenceNumber}{"pickupTime"}
       deliveryTime = ent:orderMap{orderSequenceNumber}{"deliveryTime"}
       location = ent:orderMap{orderSequenceNumber}{"location"}
+      flowerShopCoordinate = ent:orderMap{orderSequenceNumber}{"flowerShopCoordinate"}
+      orderCoordinate = ent:orderMap{orderSequenceNumber}{"orderCoordinate"}
     }
     if pickedDriver != null then event:send({
       "eci": pickedDriver{"driverEci"},
@@ -65,7 +67,9 @@ ruleset flower_shop {
         "pickupTime": pickupTime,
         "deliveryTime": deliveryTime,
         "location": location,
-        "orderSequenceNumber": orderSequenceNumber
+        "orderSequenceNumber": orderSequenceNumber,
+        "flowerShopCoordinate": flowerShopCoordinate,
+        "orderCoordinate": orderCoordinate
       }
     })
     fired {
@@ -132,7 +136,9 @@ ruleset flower_shop {
     pre {
       pickupTime = time:add(time:now(), {"seconds": 15})
       deliveryTime = time:add(time:now(), {"seconds": 30})
-    }
+      myCoordinate = "-111.687854,40.296484"
+      orderCoordinate = "-111.649701,40.226665"
+     }
     always {
       order = { 
         "orderSequenceNumber": ent:orderSequenceNumber, 
@@ -141,7 +147,9 @@ ruleset flower_shop {
         "pickupTime": pickupTime, 
         "deliveryTime": deliveryTime,
         "location": "not implemented",
-        "bids": []
+        "bids": [],
+        "flowerShopCoordinate": myCoordinate,
+        "orderCoordinate": orderCoordinate
       };
       ent:orderMap{ent:orderSequenceNumber} := order;
       ent:orderSequenceNumber := ent:orderSequenceNumber + 1;
@@ -163,6 +171,8 @@ ruleset flower_shop {
         deliveryTime = event:attrs{"deliveryTime"}
         location = event:attrs{"location"}
         orderSequenceNumber = event:attrs{"orderSequenceNumber"}
+        flowerShopCoordinate = event:attrs{"flowerShopCoordinate"}
+        orderCoordinate = event:attrs{"orderCoordinate"}
       }
       event:send({
         "eci": eci,
@@ -174,7 +184,9 @@ ruleset flower_shop {
           "pickupTime": pickupTime,
           "deliveryTime": deliveryTime,
           "location": location,
-          "orderSequenceNumber": orderSequenceNumber
+          "orderSequenceNumber": orderSequenceNumber,
+          "flowerShopCoordinate": flowerShopCoordinate,
+          "orderCoordinate": orderCoordinate
         }
       })
   }

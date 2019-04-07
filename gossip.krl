@@ -66,6 +66,8 @@ ruleset gossip {
       deliveryTime = event:attrs{"deliveryTime"}.klog("[gossip] process delivery time: ")
       location = event:attrs{"location"}
       orderSequenceNumber = event:attrs{"orderSequenceNumber"}
+      orderCoordinate = event:attrs{"orderCoordinate"}
+      flowerShopCoordinate = event:attrs{"flowerShopCoordinate"}
     }
     always {
       ent:seen{meta:picoId} := ent:seen{meta:picoId}.defaultsTo({}).put(meta:picoId, ent:sequenceNumber.defaultsTo(0));
@@ -76,7 +78,8 @@ ruleset gossip {
         "pickupTime": pickupTime,
         "deliveryTime": deliveryTime,
         "location": location,
-        "orderSequenceNumber": orderSequenceNumber
+        "orderSequenceNumber": orderSequenceNumber,
+        "orderCoordinate": orderCoordinate
       };
       ent:sequenceNumber := ent:sequenceNumber + 1;
       raise bid event "new_bid"
@@ -85,7 +88,9 @@ ruleset gossip {
           "pickupTime": pickupTime,
           "deliveryTime": deliveryTime,
           "location": location,
-          "orderSequenceNumber": orderSequenceNumber
+          "orderSequenceNumber": orderSequenceNumber,
+          "orderCoordinate": orderCoordinate,
+          "flowerShopCoordinate": flowerShopCoordinate
         }
     }
   }
@@ -137,7 +142,8 @@ ruleset gossip {
           "pickupTime": rumor{"pickupTime"},
           "deliveryTime": rumor{"deliveryTime"},
           "location": rumor{"location"},
-          "orderSequenceNumber": rumor{"orderSequenceNumber"}
+          "orderSequenceNumber": rumor{"orderSequenceNumber"},
+          "orderCoordinate": rumor{"orderCoordinate"}
         }
     }
     finally {

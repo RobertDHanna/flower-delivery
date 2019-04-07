@@ -1,5 +1,8 @@
 ruleset driver {
   meta {
+    use module apis_and_picos.keys
+    use module mapbox_wrapper alias mapbox
+          with access_token = keys:mapbox{"access_token"}
     shares __testing
   }
   global {
@@ -11,8 +14,11 @@ ruleset driver {
       //, { "domain": "d2", "type": "t2", "attrs": [ "a1", "a2" ] }
       ]
     }
-    locationToDistance = function() {
-      random:integer(5) + 5
+    locationToDistance = function(otherCoordinate) {
+      ent:myCoordinate.klog("my coordinate: ");
+      otherCoordinate.klog("other coordinate: ");
+      duration = (mapbox:getDuration(ent:myCoordinate, otherCoordinate){"durations"}[0][1] / 60).klog("mapbox response: ");
+      ((duration < 5) => random:integer(10) + 1 | duration).klog("duration returned: ")
     }
     pickBidAmount = function() {
       random:integer(15) + 5
@@ -32,14 +38,6 @@ ruleset driver {
     }
   }
   
-  // rule on_bid_process {
-  //   select when bid process
-  //   pre {
-  //     pickupTime = event:attrs{"pickupTime"}.klog("process pickup time: ")
-  //     deliveryTime = event:attrs{"deliveryTime"}.klog("process delivery time: ")
-  //   }
-  // }
-  
   rule bid_heartbeat {
     select when bid heartbeat
     pre {
@@ -53,7 +51,7 @@ ruleset driver {
         "attrs": {
           "driverEci": meta:eci,
           "bidAmount": pickBidAmount(),
-          "estimatedDeliveryTime": locationToDistance(),
+          "estimatedDeliveryTime": locationToDistance(bid{"orderCoordinate"}),
           "orderSequenceNumber": bid{"orderSequenceNumber"}
         }
     })
@@ -75,6 +73,8 @@ ruleset driver {
       deliveryTime = event:attrs{"deliveryTime"}
       location = event:attrs{"location"}
       orderSequenceNumber = event:attrs{"orderSequenceNumber"}
+      flowerShopCoordinate = event:attrs{"flowerShopCoordinate"}
+      orderCoordinate = event:attrs{"orderCoordinate"}
     }
     always {
       ent:bidList := ent:bidList.append({
@@ -82,7 +82,9 @@ ruleset driver {
         "pickupTime": pickupTime,
         "deliveryTime": deliveryTime,
         "location": location,
-        "orderSequenceNumber": orderSequenceNumber
+        "orderSequenceNumber": orderSequenceNumber,
+        "flowerShopCoordinate": flowerShopCoordinate,
+        "orderCoordinate": orderCoordinate
       })
     }
   }
@@ -95,6 +97,8 @@ ruleset driver {
       deliveryTime = event:attrs{"deliveryTime"}
       location = event:attrs{"location"}
       orderSequenceNumber = event:attrs{"orderSequenceNumber"}
+      flowerShopCoordinate = event:attrs{"flowerShopCoordinate"}
+      orderCoordinate = event:attrs{"orderCoordinate"}
     }
     always {
       ent:activeDelivery := {
@@ -102,7 +106,9 @@ ruleset driver {
         "pickupTime": pickupTime,
         "deliveryTime": deliveryTime,
         "location": location,
-        "orderSequenceNumber": orderSequenceNumber
+        "orderSequenceNumber": orderSequenceNumber,
+        "timeToFlowerShop": locationToDistance(flowerShopCoordinate),
+        "timeToCustomer": locationToDistance(orderCoordinate)
       };
       raise driver event "start_pickup"
         attributes attributes
@@ -113,7 +119,7 @@ ruleset driver {
     select when driver start_pickup
     pre {
       pickupTime = ent:activeDelivery{"pickupTime"}
-      nowPlusTimeToArrive = time:add(time:now(), {"seconds": locationToDistance()})
+      nowPlusTimeToArrive = time:add(time:now(), {"seconds": ent:activeDelivery{"timeToFlowerShop"}.klog("time to flower shop: ")})
       shouldILeaveNow = (pickupTime < nowPlusTimeToArrive).klog("should I leave now pickup: ")
     }
     if shouldILeaveNow then 
@@ -128,7 +134,7 @@ ruleset driver {
         }
       })
     fired {
-      schedule driver event "start_delivery" at time:add(time:now(), {"seconds": locationToDistance()})
+      schedule driver event "start_delivery" at time:add(time:now(), {"seconds": ent:activeDelivery{"timeToFlowerShop"}})
     } else {
       schedule driver event "start_pickup" at time:add(time:now(), {"seconds": 2})
     }
@@ -138,13 +144,13 @@ ruleset driver {
     select when driver start_delivery
     pre {
       deliveryTime = ent:activeDelivery{"deliveryTime"}
-      nowPlusTimeToArrive = time:add(time:now(), {"seconds": locationToDistance()})
+      nowPlusTimeToArrive = time:add(time:now(), {"seconds": ent:activeDelivery{"timeToCustomer"}.klog("time to customer: ")})
       shouldILeaveNow = (deliveryTime < nowPlusTimeToArrive).klog("should I leave now delivery: ")
     }
     if shouldILeaveNow then noop()
     // also send text message using twilio
     fired {
-      schedule driver event "finalize_delivery" at time:add(time:now(), {"seconds": locationToDistance()})
+      schedule driver event "finalize_delivery" at time:add(time:now(), {"seconds": ent:activeDelivery{"timeToCustomer"}})
     } else {
       schedule driver event "start_delivery" at time:add(time:now(), {"seconds": 2})
     }
@@ -178,6 +184,16 @@ ruleset driver {
     }
   }
   
+  rule on_set_coordinate {
+    select when coordinate set
+    pre {
+      coordinate = event:attrs{"coordinate"}
+    }
+    always {
+      ent:myCoordinate := coordinate
+    }
+  }
+  
   rule on_installation {
     select when wrangler ruleset_added where rids >< meta:rid
     pre {
@@ -186,6 +202,7 @@ ruleset driver {
     fired{
       ent:activeDelivery := null;
       ent:bidList := [];
+      ent:myCoordinate := "";
       raise bid event "heartbeat"
         attributes attributes
     }
